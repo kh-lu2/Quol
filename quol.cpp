@@ -4,6 +4,10 @@
 #include <iomanip>
 #include <map>
 #include <numbers>
+#include <numeric>
+#include "matplotlibcpp.h"
+
+namespace plt = matplotlibcpp;
 
 using namespace std;
 const double PI = numbers::pi;
@@ -63,6 +67,7 @@ struct QFT {
 
 int main() {
     int n, a, m;
+    cout << "Enter n, a, m: "; // Prompt for input
     cin >> n >> a >> m;
 
     map<int, vector<int>> M;
@@ -75,14 +80,35 @@ int main() {
 
     QFT qft(m);
 
+    std::vector<double> x_axis(m);
+    std::iota(x_axis.begin(), x_axis.end(), 0);
+    std::vector<double> y_axis(m, 0.0);
+    bool data_collected = false;
+
     for (auto &[right, nums] : M) {
         QFTResult res;
         for (auto &num : nums)
             res = res + qft.qft(num);
 
         res.normalize();
+
+        if (!data_collected) {
+            for (auto &[num, amp] : res.state) {
+                if (num >= 0 && num < m) {
+                    y_axis[num] = norm(amp);
+                }
+            }
+            data_collected = true;
+        }
+
         cout << "( ";
         qft.print(res);
         cout << " ) |" << right << ">\n";
     }
+
+    plt::bar(x_axis, y_axis);
+    plt::title("Quantum State Probabilities");
+    plt::xlabel("State Index");
+    plt::ylabel("Probability");
+    plt::show();
 }
