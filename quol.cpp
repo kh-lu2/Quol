@@ -1,114 +1,281 @@
+#define _USE_MATH_DEFINES
 #include <iostream>
 #include <complex>
-#include <vector>
-#include <iomanip>
+#include <queue>
+#include <cmath>
 #include <map>
-#include <numbers>
-#include <numeric>
-#include "matplotlibcpp.h"
-
-namespace plt = matplotlibcpp;
-
 using namespace std;
-const double PI = numbers::pi;
 
 typedef complex<double> CD;
+typedef vector<CD> VCD;
+typedef vector<vector<CD>> MCD;
 
-struct QFTResult {
-    map<int, CD> state;
+struct Gate {
+    MCD matrix;
+    Gate(MCD matrix) : matrix(matrix) {};
+};
 
-    QFTResult() {}
-    QFTResult(map<int, CD> m) : state(m) {}
-
-    QFTResult operator+(const QFTResult& rhs) const {
-        map<int, CD> res = state;
-        for (auto &[num, xy] : rhs.state) {
-            res[num] += xy;
+struct NotGate : Gate {
+    NotGate() : Gate (
+        {
+            {0, 1},
+            {1, 0}
         }
-        return QFTResult(res);
+    ) {}
+};
+
+struct HadamardGate : Gate {
+    HadamardGate() : Gate (
+        {
+            {1/sqrt(2), 1/sqrt(2)},
+            {1/sqrt(2), -1/sqrt(2)}
+        }
+    ) {}
+
+};
+
+struct PhaseFlipGate : Gate
+{
+    PhaseFlipGate(double theta) : Gate (
+        {
+            {1, 0},
+            {0, CD(polar(1.0, theta))}
+        }
+    ) {}
+};
+
+struct SwapGate : Gate {
+    SwapGate() : Gate (
+        {
+            {1, 0, 0, 0},
+            {0, 0, 1, 0},
+            {0, 1, 0, 0},
+            {0, 0, 0, 1}
+        }
+    ) {}
+};
+
+struct Operator {
+    vector<Gate*> gates;
+    vector<vector<int>> gate_indexes;
+
+    ~Operator() {
+        for (auto gate : gates)
+            delete gate;
     }
 
-    void normalize() {
-        double totalNorm = 0;
-        for (auto &[_, amp] : state) totalNorm += norm(amp);
-        if (totalNorm > 0) {
-            double factor = 1.0 / sqrt(totalNorm);
-            for (auto &[_, amp] : state) amp *= factor;
-        }
+    template<typename T, typename... Args>
+    void add_gate(vector<int> indexes, Args&&... args) {
+        auto gate = new T{forward<Args>(args)...};
+        gates.push_back(gate);
+        gate_indexes.push_back(indexes);
     }
 };
 
-struct QFT {
-    int m;
-    CD ampOfOne;
-
-    QFT(int m) : m(m) {
-        ampOfOne = CD(1.0 / sqrt(m), 0);
-    }
-
-    QFTResult qft(int x) const {
-        QFTResult res;
-        for (int y = 0; y < m; y++)
-            res.state[y] = ampOfOne * polar(1.0, 2 * PI * x * y / m);
-        return res;
-    }
-
-    void print(const QFTResult& res) const {
-        bool first = true;
-        for (auto &[num, amp] : res.state) {
-            double p = norm(amp);
-            if (p < 0.005) continue;
-            if (!first) cout << " + ";
-            cout << fixed << setprecision(4) << p << "|" << num << ">";
-            first = false;
+MCD createControlledMatrix(const MCD& U) {
+    size_t target_dim = U.size();
+    size_t dim = target_dim * 2;
+    MCD controlled_matrix(dim, VCD(dim, 0));
+    
+    for (size_t r = 0; r < dim; r++) {
+        for (size_t c = 0; c < dim; c++) {
+            if ((r & 1) == 0) {
+                if (r == c)
+                    controlled_matrix[r][c] = 1;
+            } else {
+                size_t r_sub = r >> 1;
+                size_t c_sub = c >> 1;
+                if ((r & 1) == (c & 1))
+                    controlled_matrix[r][c] = U[r_sub][c_sub];
+            }
         }
     }
+    
+    return controlled_matrix;
+}
+
+struct GateInfo {
+    MCD matrix;
+    vector<int> target_indices;
+    
+    GateInfo(MCD m, vector<int> t) : matrix(m), target_indices(t) {}
 };
+    
+struct Circuit {
+    int num_qubits;
+    VCD state;
+    vector<GateInfo> gates;
 
-int main() {
-    int n, a, m;
-    cout << "Enter n, a, m: "; // Prompt for input
-    cin >> n >> a >> m;
-
-    map<int, vector<int>> M;
-    int aToK = 1;
-    M[aToK].push_back(0);
-    for (int k = 1; k < m; k++) {
-        (aToK *= a) %= n;
-        M[aToK].push_back(k);
+    Circuit(int n_qubits) : num_qubits(n_qubits) {
+        size_t dim = 1 << num_qubits;
+        state = VCD(dim, 0);
+        state[0] = 1;
     }
 
-    QFT qft(m);
+    ~Circuit() {}
 
-    std::vector<double> x_axis(m);
-    std::iota(x_axis.begin(), x_axis.end(), 0);
-    std::vector<double> y_axis(m, 0.0);
-    bool data_collected = false;
+    template<typename T, typename... Args>
+    void add_gate(vector<int> indexes, Args&&... args) {
+        auto gate = new T{forward<Args>(args)...};
+        gates.push_back(GateInfo(gate->matrix, indexes));
+        delete gate;
+    }
 
-    for (auto &[right, nums] : M) {
-        QFTResult res;
-        for (auto &num : nums)
-            res = res + qft.qft(num);
+    void add_operator(Operator& op) {
+        for (size_t g = 0; g < op.gates.size(); g++) {
+            gates.push_back(GateInfo(op.gates[g]->matrix, op.gate_indexes[g]));
+        }
+        op.gates.clear();
+        op.gate_indexes.clear();
+    }
 
-        res.normalize();
+    void apply_gate(const MCD& gate_matrix, const vector<int>& target_indices) {
+        size_t full_dim = 1 << num_qubits;
+        VCD new_state(full_dim, 0);
+        
+        for (size_t i = 0; i < full_dim; i++) {
+            for (size_t j = 0; j < full_dim; j++) {
+                bool non_target_match = true;
+                for (int q = 0; q < num_qubits; q++) {
+                    bool is_target = false;
+                    for (int t : target_indices) {
+                        if (t == q) {
+                            is_target = true;
+                            break;
+                        }
+                    }
+                    if (!is_target) {
+                        bool i_bit = (i >> q) & 1;
+                        bool j_bit = (j >> q) & 1;
+                        if (i_bit != j_bit) {
+                            non_target_match = false;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!non_target_match) continue;
+                
+                size_t i_target = 0, j_target = 0;
+                for (size_t t = 0; t < target_indices.size(); t++) {
+                    int qubit = target_indices[t];
+                    if ((i >> qubit) & 1) i_target |= (1 << t);
+                    if ((j >> qubit) & 1) j_target |= (1 << t);
+                }
+                
+                new_state[i] += gate_matrix[i_target][j_target] * state[j];
+            }
+        }
+        
+        state = new_state;
+    }
 
-        if (!data_collected) {
-            for (auto &[num, amp] : res.state) {
-                if (num >= 0 && num < m) {
-                    y_axis[num] = norm(amp);
+    void run() {
+        for (auto& gate : gates) {
+            apply_gate(gate.matrix, gate.target_indices);
+        }
+    }
+
+    vector<bool> read() {
+        vector<bool> res(num_qubits);
+        
+        for (int q = 0; q < num_qubits; q++) {
+            double p1 = 0;
+            size_t full_dim = 1 << num_qubits;
+            
+            for (size_t i = 0; i < full_dim; i++) {
+                if ((i >> q) & 1) {
+                    p1 += norm(state[i]);
                 }
             }
-            data_collected = true;
+            
+            double r = (double) rand() / RAND_MAX;
+            res[q] = (r < p1);
+            
+            VCD collapsed_state(full_dim, 0);
+            double norm_factor = 0;
+            
+            for (size_t i = 0; i < full_dim; i++) {
+                bool bit = (i >> q) & 1;
+                if (bit == res[q]) {
+                    collapsed_state[i] = state[i];
+                    norm_factor += norm(state[i]);
+                }
+            }
+            
+            if (norm_factor > 0) {
+                for (size_t i = 0; i < full_dim; i++) {
+                    collapsed_state[i] /= sqrt(norm_factor);
+                }
+            }
+            state = collapsed_state;
+        }
+        
+        return res;
+    }
+};
+
+
+int main() {
+    int z = 30;
+    map<int, int> counts;
+    while (z--)
+    {    
+        Circuit sus(8);
+        sus.add_gate<NotGate>({4});
+
+        for (int qubit = 0; qubit < 4; qubit++)
+        {
+            sus.add_gate<HadamardGate>({qubit});
         }
 
-        cout << "( ";
-        qft.print(res);
-        cout << " ) |" << right << ">\n";
+        Operator U;
+        U.add_gate<SwapGate>({4, 5});
+        U.add_gate<SwapGate>({5, 6});
+        U.add_gate<SwapGate>({6, 7});
+        U.add_gate<NotGate>({4});
+        U.add_gate<NotGate>({5});
+        U.add_gate<NotGate>({6});
+        U.add_gate<NotGate>({7});
+
+        for (int i = 0; i < 4; i++) {
+            int reps = 1 << i;
+            for (int r = 0; r < reps; r++) {
+                for (size_t g = 0; g < U.gates.size(); g++) {
+                    MCD controlled_matrix = createControlledMatrix(U.gates[g]->matrix);
+                    vector<int> controlled_indexes = {i};
+                    for (auto &idx : U.gate_indexes[g])
+                        controlled_indexes.push_back(idx);
+                    sus.add_gate<Gate>(controlled_indexes, controlled_matrix);
+                }
+            }
+        }
+
+        for (int qubit = 3; qubit >= 0; qubit--) {
+            sus.add_gate<HadamardGate>({qubit});
+            
+            for (int qubit2 = qubit - 1; qubit2 >= 0; qubit2--) {
+                double theta = M_PI / (1 << (qubit - qubit2));
+                MCD phaseMatrix = {{1, 0}, {0, CD(polar(1.0, theta))}};
+                MCD controlledPhase = createControlledMatrix(phaseMatrix);
+                sus.add_gate<Gate>({qubit2, qubit}, controlledPhase);
+            }
+        }
+        
+        sus.add_gate<SwapGate>({0, 3});
+        sus.add_gate<SwapGate>({1, 2});
+
+        sus.run();
+        vector<bool> read = sus.read();
+        int res = 0;
+        for (int i = 0; i < 4; i++)
+            res += (read[i] << i);
+
+        counts[res]++;        
     }
 
-    plt::bar(x_axis, y_axis);
-    plt::title("Quantum State Probabilities");
-    plt::xlabel("State Index");
-    plt::ylabel("Probability");
-    plt::show();
+    for (auto& [count, value] : counts) {
+        cout << count << ": " << value << endl;
+    }
+
 }
