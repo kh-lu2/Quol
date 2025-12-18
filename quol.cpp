@@ -212,9 +212,9 @@ int main() {
             
             for (int qubit2 = qubit - 1; qubit2 >= 0; qubit2--) {
                 double theta = M_PI / (1 << (qubit - qubit2));
-                MCD phaseMatrix = {{1, 0}, {0, CD(polar(1.0, theta))}};
-                MCD controlledPhase = createControlledMatrix(phaseMatrix);
-                sus.add_gate<Gate>({qubit2, qubit}, controlledPhase);
+                MCD phase_matrix = {{1, 0}, {0, CD(polar(1.0, theta))}};
+                MCD controlled_phase = createControlledMatrix(phase_matrix);
+                sus.add_gate<Gate>({qubit2, qubit}, controlled_phase);
             }
         }
         
