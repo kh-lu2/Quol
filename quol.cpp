@@ -73,24 +73,18 @@ struct Operator {
 };
 
 MCD createControlledMatrix(const MCD& U) {
-    size_t target_dim = U.size();
-    size_t dim = target_dim * 2;
-    MCD controlled_matrix(dim, VCD(dim, 0));
-    
-    for (size_t r = 0; r < dim; r++) {
-        for (size_t c = 0; c < dim; c++) {
-            if ((r & 1) == 0) {
-                if (r == c)
-                    controlled_matrix[r][c] = 1;
-            } else {
-                size_t r_sub = r >> 1;
-                size_t c_sub = c >> 1;
-                if ((r & 1) == (c & 1))
-                    controlled_matrix[r][c] = U[r_sub][c_sub];
-            }
-        }
-    }
-    
+    int k = U.size();
+
+    MCD controlled_matrix(2 * k);
+
+    for (int i = 0; i < k; i++)
+        for (int j = 0; j < 2 * k; j++)
+            controlled_matrix[i].push_back((i == j) ? 1 : 0);
+
+    for (int i = 0; i < k; i++)
+        for (int j = 0; j < 2 * k; j++)
+            controlled_matrix[i + k].push_back((j < k) ? 0 : U[i][j - k]);
+
     return controlled_matrix;
 }
 
@@ -107,7 +101,7 @@ struct Circuit {
     vector<GateInfo> gates;
 
     Circuit(int n_qubits) : num_qubits(n_qubits) {
-        size_t dim = 1 << num_qubits;
+        int dim = 1 << num_qubits;
         state = VCD(dim, 0);
         state[0] = 1;
     }
@@ -122,93 +116,57 @@ struct Circuit {
     }
 
     void add_operator(Operator& op) {
-        for (size_t g = 0; g < op.gates.size(); g++) {
+        for (int g = 0; g < op.gates.size(); g++)
             gates.push_back(GateInfo(op.gates[g]->matrix, op.gate_indexes[g]));
-        }
-        op.gates.clear();
-        op.gate_indexes.clear();
     }
 
-    void apply_gate(const MCD& gate_matrix, const vector<int>& target_indices) {
-        size_t full_dim = 1 << num_qubits;
-        VCD new_state(full_dim, 0);
-        
-        for (size_t i = 0; i < full_dim; i++) {
-            for (size_t j = 0; j < full_dim; j++) {
-                bool non_target_match = true;
-                for (int q = 0; q < num_qubits; q++) {
-                    bool is_target = false;
-                    for (int t : target_indices) {
-                        if (t == q) {
-                            is_target = true;
-                            break;
-                        }
-                    }
-                    if (!is_target) {
-                        bool i_bit = (i >> q) & 1;
-                        bool j_bit = (j >> q) & 1;
-                        if (i_bit != j_bit) {
-                            non_target_match = false;
-                            break;
-                        }
-                    }
-                }
-                
-                if (!non_target_match) continue;
-                
-                size_t i_target = 0, j_target = 0;
-                for (size_t t = 0; t < target_indices.size(); t++) {
-                    int qubit = target_indices[t];
-                    if ((i >> qubit) & 1) i_target |= (1 << t);
-                    if ((j >> qubit) & 1) j_target |= (1 << t);
-                }
-                
-                new_state[i] += gate_matrix[i_target][j_target] * state[j];
+    void apply_gate(const MCD& U, const vector<int>& targets) {
+        int n = num_qubits;
+        int k = targets.size();
+        int dim = 1 << n;
+        int sub_dim = 1 << k;
+
+        VCD new_state(dim, 0);
+
+        for (int j = 0; j < dim; j++) {
+            int j_sub = 0;
+            for (int b = 0; b < k; b++)
+                if ((j >> targets[b]) & 1)
+                    j_sub |= (1 << (k - 1 - b));
+
+            for (int i_sub = 0; i_sub < sub_dim; i_sub++) {
+                int i = j;
+                for (int b = 0; b < k; b++)
+                    if ((i_sub >> (k - 1 - b)) & 1)
+                        i |= (1 << targets[b]);
+                    else
+                        i &= ~(1 << targets[b]);
+
+                new_state[i] += U[i_sub][j_sub] * state[j];
             }
         }
-        
+
         state = new_state;
     }
 
     void run() {
-        for (auto& gate : gates) {
+        for (auto& gate : gates)
             apply_gate(gate.matrix, gate.target_indices);
-        }
     }
 
-    vector<bool> read() {
+    vector<bool> magic_read() {
         vector<bool> res(num_qubits);
         
         for (int q = 0; q < num_qubits; q++) {
             double p1 = 0;
-            size_t full_dim = 1 << num_qubits;
+            int full_dim = 1 << num_qubits;
             
-            for (size_t i = 0; i < full_dim; i++) {
-                if ((i >> q) & 1) {
+            for (int i = 0; i < full_dim; i++)
+                if ((i >> q) & 1)
                     p1 += norm(state[i]);
-                }
-            }
             
             double r = (double) rand() / RAND_MAX;
             res[q] = (r < p1);
-            
-            VCD collapsed_state(full_dim, 0);
-            double norm_factor = 0;
-            
-            for (size_t i = 0; i < full_dim; i++) {
-                bool bit = (i >> q) & 1;
-                if (bit == res[q]) {
-                    collapsed_state[i] = state[i];
-                    norm_factor += norm(state[i]);
-                }
-            }
-            
-            if (norm_factor > 0) {
-                for (size_t i = 0; i < full_dim; i++) {
-                    collapsed_state[i] /= sqrt(norm_factor);
-                }
-            }
-            state = collapsed_state;
         }
         
         return res;
@@ -225,9 +183,7 @@ int main() {
         sus.add_gate<NotGate>({4});
 
         for (int qubit = 0; qubit < 4; qubit++)
-        {
             sus.add_gate<HadamardGate>({qubit});
-        }
 
         Operator U;
         U.add_gate<SwapGate>({4, 5});
@@ -241,7 +197,7 @@ int main() {
         for (int i = 0; i < 4; i++) {
             int reps = 1 << i;
             for (int r = 0; r < reps; r++) {
-                for (size_t g = 0; g < U.gates.size(); g++) {
+                for (int g = 0; g < U.gates.size(); g++) {
                     MCD controlled_matrix = createControlledMatrix(U.gates[g]->matrix);
                     vector<int> controlled_indexes = {i};
                     for (auto &idx : U.gate_indexes[g])
@@ -266,7 +222,7 @@ int main() {
         sus.add_gate<SwapGate>({1, 2});
 
         sus.run();
-        vector<bool> read = sus.read();
+        vector<bool> read = sus.magic_read();
         int res = 0;
         for (int i = 0; i < 4; i++)
             res += (read[i] << i);
@@ -274,8 +230,7 @@ int main() {
         counts[res]++;        
     }
 
-    for (auto& [count, value] : counts) {
+    for (auto& [count, value] : counts)
         cout << count << ": " << value << endl;
-    }
 
 }
