@@ -295,5 +295,6 @@ void shor(int n = 15, int a = 7, int m = 16) {
 
 
 int main() {
+    srand(time(0));
     shor();
 }
