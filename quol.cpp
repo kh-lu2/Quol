@@ -79,13 +79,23 @@ MCD createControlledMatrix(const MCD& U) {
 
     for (int i = 0; i < k; i++)
         for (int j = 0; j < 2 * k; j++)
-            controlled_matrix[i].push_back((i == j) ? 1 : 0);
+            controlled_matrix[2 * i].push_back((2 * i == j) ? 1 : 0);
 
     for (int i = 0; i < k; i++)
         for (int j = 0; j < 2 * k; j++)
-            controlled_matrix[i + k].push_back((j < k) ? 0 : U[i][j - k]);
+            controlled_matrix[2 * i + 1].push_back((j % 2 == 0) ? 0 : U[i][j / 2]);
 
     return controlled_matrix;
+}
+
+VCD get_result_state (VCD state, MCD matrix) {
+    VCD result(state.size());
+    for (int i = 0; i < state.size(); i++) {
+        for (int j = 0; j < state.size(); j++) {
+            result[i] += state[j] * matrix[j][i];
+        }
+    }
+    return result;
 }
 
 struct GateInfo {
@@ -121,32 +131,44 @@ struct Circuit {
     }
 
     void apply_gate(const MCD& U, const vector<int>& targets) {
-        int n = num_qubits;
-        int k = targets.size();
-        int dim = 1 << n;
-        int sub_dim = 1 << k;
+        int num_spectators = num_qubits - targets.size(); 
+        int target_mask = 0;
+        for (auto &target: targets)
+            target_mask |= (1 << target);
+        
+        int spectator_mask = 0;
+        for (int i = 0; i < num_qubits; i++)
+            if (!((target_mask >> i) & 1))
+                spectator_mask |= (1 << i);
 
-        VCD new_state(dim, 0);
-
-        for (int j = 0; j < dim; j++) {
-            int j_sub = 0;
-            for (int b = 0; b < k; b++)
-                if ((j >> targets[b]) & 1)
-                    j_sub |= (1 << (k - 1 - b));
-
-            for (int i_sub = 0; i_sub < sub_dim; i_sub++) {
-                int i = j;
-                for (int b = 0; b < k; b++)
-                    if ((i_sub >> (k - 1 - b)) & 1)
-                        i |= (1 << targets[b]);
-                    else
-                        i &= ~(1 << targets[b]);
-
-                new_state[i] += U[i_sub][j_sub] * state[j];
+        for (int spectator_state = 0; spectator_state < (1 << num_spectators); spectator_state++) {
+            VCD working_state;
+            vector<int> working_state_ids;
+            int long_spectator_state = 0;
+            int spect_id = 0;
+            for (int i = 0; i < num_qubits; i++) {
+                if ((spectator_mask >> i) & 1) {
+                    long_spectator_state |= ((spectator_state >> spect_id) & 1) << i;
+                    spect_id++;
+                }
             }
-        }
 
-        state = new_state;
+            for (int target_state = 0; target_state < (1 << targets.size()); target_state++) {
+                int state_id = long_spectator_state;
+
+                for (int target_id = 0; target_id < targets.size(); target_id++)
+                    if ((target_state >> target_id) & 1)
+                        state_id |= (1 << targets[target_id]);
+
+                working_state_ids.push_back(state_id);
+                working_state.push_back(state[state_id]);
+            }
+
+            VCD result = get_result_state(working_state, U);
+
+            for (int i = 0; i < working_state_ids.size(); i++)
+                state[working_state_ids[i]] = result[i];
+        }
     }
 
     void run() {
