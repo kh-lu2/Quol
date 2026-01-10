@@ -6,7 +6,12 @@
 #include <map>
 #include <numeric>
 #include <algorithm>
+#include <random>
 using namespace std;
+
+// Global random engine - properly seeded once
+std::mt19937 rng(std::random_device{}());
+std::uniform_real_distribution<double> uniform_dist(0.0, 1.0);
 
 typedef complex<double> CD;
 typedef vector<CD> VCD;
@@ -192,7 +197,7 @@ struct Circuit {
         for (int i = 1; i < full_dim; i++)
             cumulative_prob[i] = cumulative_prob[i-1] + norm(state[i]);
         
-        double r = (double) rand() / RAND_MAX;
+        double r = uniform_dist(rng);
         int measured_state = 0;
         for (int i = 0; i < full_dim; i++) {
             if (r <= cumulative_prob[i]) {
@@ -440,7 +445,7 @@ Operator get_example_function_Fn() {
 }
 
 
-void run_grover(GroverInfo grover_info, int it = 20)  {
+void run_grover(GroverInfo grover_info, int it = 50)  {
     map<int, int> M;
     for (int i = 0; i < it; i++)
         M[grover(grover_info)]++;
@@ -450,7 +455,6 @@ void run_grover(GroverInfo grover_info, int it = 20)  {
 }
 
 int main() {
-    srand(time(0));
     shor();
     cout << "\n";
 
