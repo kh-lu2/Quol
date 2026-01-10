@@ -286,6 +286,7 @@ int get_r_from_fraction_expansion(int p, int n, int a, int m) {
 }
 
 void shor(int n = 15, int a = 7, int m = 16) {
+    cout << "Factorizing 15...\n";
     bool finished = 0;
     do {
         int p = phase_estimation();
@@ -451,14 +452,17 @@ void run_grover(GroverInfo grover_info, int it = 20)  {
 int main() {
     srand(time(0));
     shor();
+    cout << "\n";
 
     GroverInfo grover_info {4, 1, 0, get_Fn_for_indexes(4, {11})};
     run_grover(grover_info);
+    cout << "\n";
 
     GroverInfo grover_info2 {4, 3, 0, get_Fn_for_indexes(4, {5, 8, 1})};
     run_grover(grover_info2);
+    cout << "\n";
 
     GroverInfo grover_info3 {4, 1, 0, get_example_function_Fn()};
     run_grover(grover_info3);
-
+    cout << "\n";
 }
