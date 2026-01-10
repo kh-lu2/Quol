@@ -5,6 +5,7 @@
 #include <cmath>
 #include <map>
 #include <numeric>
+#include <algorithm>
 using namespace std;
 
 typedef complex<double> CD;
@@ -57,19 +58,21 @@ struct SwapGate : Gate {
 };
 
 struct Operator {
-    vector<Gate*> gates;
+    vector<MCD> gates;
     vector<vector<int>> gate_indexes;
-
-    ~Operator() {
-        for (auto gate : gates)
-            delete gate;
-    }
 
     template<typename T, typename... Args>
     void add_gate(vector<int> indexes, Args&&... args) {
-        auto gate = new T{forward<Args>(args)...};
-        gates.push_back(gate);
+        T gate{forward<Args>(args)...};
+        gates.push_back(gate.matrix);
         gate_indexes.push_back(indexes);
+    }
+
+    void add_operator(const Operator& op) {
+        for (int i = 0; i < op.gates.size(); i++) {
+            gates.push_back(op.gates[i]);
+            gate_indexes.push_back(op.gate_indexes[i]);
+        }
     }
 };
 
@@ -88,6 +91,9 @@ MCD createControlledMatrix(const MCD& U) {
 
     return controlled_matrix;
 }
+
+MCD CNOT_matrix = createControlledMatrix({{0, 1}, {1, 0}});
+MCD CCNOT_matrix = createControlledMatrix(CNOT_matrix);
 
 VCD get_result_state (VCD state, MCD matrix) {
     VCD result(state.size());
@@ -126,9 +132,9 @@ struct Circuit {
         delete gate;
     }
 
-    void add_operator(Operator& op) {
+    void add_operator(const Operator& op) {
         for (int g = 0; g < op.gates.size(); g++)
-            gates.push_back(GateInfo(op.gates[g]->matrix, op.gate_indexes[g]));
+            gates.push_back(GateInfo(op.gates[g], op.gate_indexes[g]));
     }
 
     void apply_gate(const MCD& U, const vector<int>& targets) {
@@ -179,18 +185,24 @@ struct Circuit {
 
     vector<bool> magic_read() {
         vector<bool> res(num_qubits);
+        int full_dim = 1 << num_qubits;
         
-        for (int q = 0; q < num_qubits; q++) {
-            double p1 = 0;
-            int full_dim = 1 << num_qubits;
-            
-            for (int i = 0; i < full_dim; i++)
-                if ((i >> q) & 1)
-                    p1 += norm(state[i]);
-            
-            double r = (double) rand() / RAND_MAX;
-            res[q] = (r < p1);
+        vector<double> cumulative_prob(full_dim);
+        cumulative_prob[0] = norm(state[0]);
+        for (int i = 1; i < full_dim; i++)
+            cumulative_prob[i] = cumulative_prob[i-1] + norm(state[i]);
+        
+        double r = (double) rand() / RAND_MAX;
+        int measured_state = 0;
+        for (int i = 0; i < full_dim; i++) {
+            if (r <= cumulative_prob[i]) {
+                measured_state = i;
+                break;
+            }
         }
+        
+        for (int q = 0; q < num_qubits; q++)
+            res[q] = (measured_state >> q) & 1;
         
         return res;
     }
@@ -216,7 +228,7 @@ int phase_estimation()  {
         int reps = 1 << i;
         for (int r = 0; r < reps; r++) {
             for (int g = 0; g < U.gates.size(); g++) {
-                MCD controlled_matrix = createControlledMatrix(U.gates[g]->matrix);
+                MCD controlled_matrix = createControlledMatrix(U.gates[g]);
                 vector<int> controlled_indexes = {i};
                 for (auto &idx : U.gate_indexes[g])
                     controlled_indexes.push_back(idx);
@@ -293,8 +305,160 @@ void shor(int n = 15, int a = 7, int m = 16) {
     } while (!finished);
 }
 
+struct GroverInfo {
+    int n;
+    int k;
+    int f_anc;
+
+
+    Operator Fn;
+};
+
+Operator get_f0_operator(int n) {
+    Operator f0x;
+     for (int i = 0; i < n; i++) 
+        f0x.add_gate<NotGate>({i});
+    
+    return f0x;    
+}
+
+Operator check_if_one(int n) {
+    Operator op;
+    op.add_gate<Gate>({0, 1, n}, CCNOT_matrix);
+    for (int i = 0; i < n - 2; i++)
+        op.add_gate<Gate>({n + i, i + 2, n + i + 1 }, CCNOT_matrix);
+
+    return op;
+}
+
+Operator reverse_operator(const Operator& op) {
+    Operator result;
+    for (int i = op.gates.size() - 1; i >= 0; i--) {
+        result.gates.push_back(op.gates[i]);
+        result.gate_indexes.push_back(op.gate_indexes[i]);
+    }
+    return result;
+}
+
+Operator get_Fn(int n, const Operator& fx) {
+    Operator Fn;
+
+    Fn.add_operator(fx);
+    Operator if_one_op = check_if_one(n);
+    Fn.add_operator(if_one_op);
+
+    Fn.add_gate<Gate>({2 * n - 2, 2 * n - 1}, CNOT_matrix);
+
+    Fn.add_operator(reverse_operator(if_one_op));
+    Fn.add_operator(reverse_operator(fx));
+
+    return Fn;
+}
+
+
+Operator wrap_Fn(int n, const Operator& Fn) {
+    Operator Vf;
+    Vf.add_gate<HadamardGate>({2 * n - 1});
+
+    Vf.add_operator(Fn);
+    Vf.add_gate<HadamardGate>({2 * n - 1});
+
+    return Vf;
+}
+
+Operator get_F0n(int n) {
+    Operator f0x = get_f0_operator(n);
+    return get_Fn(n, f0x);
+}
+
+int grover(const GroverInfo& grover_info) {
+    double theta = asin(sqrt(double(grover_info.k) / (1 << grover_info.n)));
+    int r = M_PI / (4 * theta);
+
+    Circuit grover_circuit(2 * grover_info.n + grover_info.f_anc);
+    // q1 q2 .. qn a1 a2 ... an-1 y f1 f2... fanc
+    grover_circuit.add_gate<NotGate>({2 * grover_info.n - 1});
+
+    for (int i = 0; i < grover_info.n; i++)
+        grover_circuit.add_gate<HadamardGate>({i});
+
+    for (int i = 0; i < r; i++) {
+        //Vf
+        grover_circuit.add_operator(wrap_Fn(grover_info.n, grover_info.Fn));
+
+        //Hn
+        for (int i = 0; i < grover_info.n; i++)
+            grover_circuit.add_gate<HadamardGate>({i});
+
+        //Rn
+        Operator F0n = get_F0n(grover_info.n);
+        grover_circuit.add_operator(wrap_Fn(grover_info.n, F0n));
+
+        //Hn
+        for (int i = 0; i < grover_info.n; i++)
+            grover_circuit.add_gate<HadamardGate>({i});
+    }
+
+    grover_circuit.run();
+    vector<bool> read = grover_circuit.magic_read();
+
+    int res = 0;
+    for (int i = 0; i < grover_info.n; i++)
+        res += (read[i] << i);
+
+    return res;
+}
+
+Operator get_Fn_for_indexes(int n, vector<int> indexes) {
+    cout << "Expected one of the following: ";
+    Operator fx;
+    for (auto &id: indexes) {
+        cout << id << " ";
+        Operator f_for_id;
+        for (int i = 0; i < n; i++)
+            if (!((id >> i) & 1))
+                f_for_id.add_gate<NotGate>({i});
+        fx.add_operator(get_Fn(n, f_for_id));
+    }
+
+    cout << "\n";
+    return fx;
+}
+
+Operator get_example_function_Fn() {
+    cout << "Expected result: 2\n";
+    Operator fx;
+    fx.add_gate<SwapGate>({1, 3});
+    fx.add_gate<NotGate>({0});
+    fx.add_gate<NotGate>({1});
+
+    //checks if output is 11
+    fx.add_gate<NotGate>({2});
+
+    return get_Fn(4, fx);
+}
+
+
+void run_grover(GroverInfo grover_info, int it = 20)  {
+    map<int, int> M;
+    for (int i = 0; i < it; i++)
+        M[grover(grover_info)]++;
+
+    for (auto &[res, cnt]: M) 
+        cout << res << ": " << double(cnt) / it * 100 << "%\n";
+}
 
 int main() {
     srand(time(0));
     shor();
+
+    GroverInfo grover_info {4, 1, 0, get_Fn_for_indexes(4, {11})};
+    run_grover(grover_info);
+
+    GroverInfo grover_info2 {4, 3, 0, get_Fn_for_indexes(4, {5, 8, 1})};
+    run_grover(grover_info2);
+
+    GroverInfo grover_info3 {4, 1, 0, get_example_function_Fn()};
+    run_grover(grover_info3);
+
 }
