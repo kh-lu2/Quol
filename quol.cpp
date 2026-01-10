@@ -9,7 +9,6 @@
 #include <random>
 using namespace std;
 
-// Global random engine - properly seeded once
 std::mt19937 rng(std::random_device{}());
 std::uniform_real_distribution<double> uniform_dist(0.0, 1.0);
 
