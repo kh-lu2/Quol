@@ -13,9 +13,9 @@ Operator Grover::get_f0_operator(int n) {
 
 Operator Grover::check_if_one(int n) {
     Operator op;
-    op.add_gate<Gate>({0, 1, n}, CCNOT_matrix);
+    op.add_gate<CCNOTGate>({0, 1, n});
     for (int i = 0; i < n - 2; i++)
-        op.add_gate<Gate>({n + i, i + 2, n + i + 1 }, CCNOT_matrix);
+        op.add_gate<CCNOTGate>({n + i, i + 2, n + i + 1 });
 
     return op;
 }
@@ -28,7 +28,7 @@ Operator Grover::get_Fn(int n, const Operator& fx) {
     Operator if_one_op = check_if_one(n);
     Fn.add_operator(if_one_op);
 
-    Fn.add_gate<Gate>({2 * n - 2, 2 * n - 1}, CNOT_matrix);
+    Fn.add_gate<CNOTGate>({2 * n - 2, 2 * n - 1});
 
     Fn.add_operator(reverse_operator(if_one_op));
     Fn.add_operator(reverse_operator(fx));

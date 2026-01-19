@@ -22,11 +22,11 @@ int Shor::phase_estimation()  {
         int reps = 1 << i;
         for (int r = 0; r < reps; r++) {
             for (int g = 0; g < U.gates.size(); g++) {
-                MCD controlled_matrix = createControlledMatrix(U.gates[g]);
+                Gate controlled_gate = createControlledGate(U.gates[g]);
                 vector<int> controlled_indexes = {i};
                 for (auto &idx : U.gate_indexes[g])
                     controlled_indexes.push_back(idx);
-                sus.add_gate<Gate>(controlled_indexes, controlled_matrix);
+                sus.add_gate<Gate>(controlled_indexes, controlled_gate.matrix);
             }
         }
     }
@@ -36,9 +36,9 @@ int Shor::phase_estimation()  {
         
         for (int qubit2 = qubit - 1; qubit2 >= 0; qubit2--) {
             double theta = M_PI / (1 << (qubit - qubit2));
-            MCD phase_matrix = {{1, 0}, {0, CD(polar(1.0, theta))}};
-            MCD controlled_phase = createControlledMatrix(phase_matrix);
-            sus.add_gate<Gate>({qubit2, qubit}, controlled_phase);
+            Gate phase_gate({{1, 0}, {0, CD(polar(1.0, theta))}});
+            Gate controlled_phase_gate = createControlledGate(phase_gate);
+            sus.add_gate<Gate>({qubit2, qubit}, controlled_phase_gate.matrix);
         }
     }
     

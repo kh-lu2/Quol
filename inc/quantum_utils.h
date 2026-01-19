@@ -9,12 +9,12 @@ typedef complex<double> CD;
 typedef vector<CD> VCD;
 typedef vector<vector<CD>> MCD;
 
-extern std::mt19937 rng;
-extern std::uniform_real_distribution<double> uniform_dist;
+extern mt19937 rng;
+extern uniform_real_distribution<double> uniform_dist;
 
 struct Gate {
     MCD matrix;
-    Gate(MCD matrix);
+    Gate(const MCD& matrix);
 };
 
 struct NotGate : Gate {
@@ -35,13 +35,13 @@ struct SwapGate : Gate {
 };
 
 struct Operator {
-    vector<MCD> gates;
+    vector<Gate> gates;
     vector<vector<int>> gate_indexes;
 
     template<typename T, typename... Args>
     void add_gate(vector<int> indexes, Args&&... args) {
         T gate{forward<Args>(args)...};
-        gates.push_back(gate.matrix);
+        gates.push_back(gate);
         gate_indexes.push_back(indexes);
     }
 
@@ -50,18 +50,22 @@ struct Operator {
 
 Operator reverse_operator(const Operator& op);
 
-MCD createControlledMatrix(const MCD& U);
+Gate createControlledGate(const Gate& gate);
 
-extern MCD CNOT_matrix;
-extern MCD CCNOT_matrix;
+struct CNOTGate : Gate {
+    CNOTGate() : Gate(createControlledGate(Gate({{0, 1}, {1, 0}})).matrix) {}
+};
+struct CCNOTGate : Gate {
+    CCNOTGate() : Gate(createControlledGate(createControlledGate(Gate({{0, 1}, {1, 0}}))).matrix) {}
+};
 
-VCD get_result_state (VCD state, MCD matrix);
+VCD get_result_state(const VCD& state, const Gate& gate);
 
 struct GateInfo {
-    MCD matrix;
+    Gate gate;
     vector<int> target_indices;
-    
-    GateInfo(MCD m, vector<int> t);
+
+    GateInfo(const Gate& gate, const vector<int>& t);
 };
     
 struct Circuit {
@@ -76,13 +80,13 @@ struct Circuit {
     template<typename T, typename... Args>
     void add_gate(vector<int> indexes, Args&&... args) {
         auto gate = new T{forward<Args>(args)...};
-        gates.push_back(GateInfo(gate->matrix, indexes));
+        gates.push_back(GateInfo(*gate, indexes));
         delete gate;
     }
 
     void add_operator(const Operator& op);
 
-    void apply_gate(const MCD& U, const vector<int>& targets);
+    void apply_gate(const Gate& gate, const vector<int>& targets);
 
     void run();
 
