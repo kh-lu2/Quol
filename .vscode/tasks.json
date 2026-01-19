@@ -2,19 +2,43 @@
     "tasks": [
         {
             "type": "shell",
-            "label": "C/C++: g++.exe build active file",
-            "command": "powershell",
+            "label": "C/C++: Build Quol Project",
+            "command": "g++",
             "args": [
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                "${workspaceFolder}\\.vscode\\build.ps1",
-                "${file}",
-                "${fileDirname}",
-                "${fileBasenameNoExtension}"
+                "-g",
+                "${workspaceFolder}/main.cpp",
+                "${workspaceFolder}/src/quantum_utils.cpp",
+                "${workspaceFolder}/src/grover.cpp",
+                "${workspaceFolder}/src/shor.cpp",
+                "-I${workspaceFolder}/inc",
+                "-o",
+                "${workspaceFolder}/build/main.exe"
             ],
             "options": {
-                "cwd": "${fileDirname}"
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Builds all project sources into main.exe."
+        },
+        {
+            "type": "cppbuild",
+            "label": "C/C++: g++.exe build active file",
+            "command": "C:/msys64/mingw64/bin/g++.exe",
+            "args": [
+                "-fdiagnostics-color=always",
+                "-g",
+                "${file}",
+                "-o",
+                "${fileDirname}\\${fileBasenameNoExtension}.exe"
+            ],
+            "options": {
+                "cwd": "C:/msys64/mingw64/bin"
             },
             "problemMatcher": [
                 "$gcc"
