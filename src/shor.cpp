@@ -3,50 +3,41 @@
 #include "../inc/shor.h"
 
 int Shor::phase_estimation()  {
-    Circuit sus(8);
-    sus.add_gate<NotGate>({4});
+    Circuit shor(8);
+    shor.add_gate<NotMatrix>({4});
 
     for (int qubit = 0; qubit < 4; qubit++)
-        sus.add_gate<HadamardGate>({qubit});
-
+        shor.add_gate<HadamardMatrix>({qubit}); 
     Operator U;
-    U.add_gate<SwapGate>({4, 5});
-    U.add_gate<SwapGate>({5, 6});
-    U.add_gate<SwapGate>({6, 7});
-    U.add_gate<NotGate>({4});
-    U.add_gate<NotGate>({5});
-    U.add_gate<NotGate>({6});
-    U.add_gate<NotGate>({7});
+    U.add_gate<SwapMatrix>({4, 5});
+    U.add_gate<SwapMatrix>({5, 6});
+    U.add_gate<SwapMatrix>({6, 7});
+    U.add_gate<NotMatrix>({4});
+    U.add_gate<NotMatrix>({5});
+    U.add_gate<NotMatrix>({6});
+    U.add_gate<NotMatrix>({7});
 
     for (int i = 0; i < 4; i++) {
         int reps = 1 << i;
-        for (int r = 0; r < reps; r++) {
-            for (int g = 0; g < U.gates.size(); g++) {
-                Gate controlled_gate = createControlledGate(U.gates[g]);
-                vector<int> controlled_indexes = {i};
-                for (auto &idx : U.gate_indexes[g])
-                    controlled_indexes.push_back(idx);
-                sus.add_gate<Gate>(controlled_indexes, controlled_gate.matrix);
-            }
-        }
+        for (int r = 0; r < reps; r++)
+            for (int g = 0; g < U.gates.size(); g++)
+                shor.add_gate(createControlledGate(U.gates[g], i));
     }
 
     for (int qubit = 3; qubit >= 0; qubit--) {
-        sus.add_gate<HadamardGate>({qubit});
+        shor.add_gate<HadamardMatrix>({qubit});
         
         for (int qubit2 = qubit - 1; qubit2 >= 0; qubit2--) {
             double theta = M_PI / (1 << (qubit - qubit2));
-            Gate phase_gate({{1, 0}, {0, CD(polar(1.0, theta))}});
-            Gate controlled_phase_gate = createControlledGate(phase_gate);
-            sus.add_gate<Gate>({qubit2, qubit}, controlled_phase_gate.matrix);
+            shor.add_gate(createControlledGate({PhaseFlipMatrix(theta), {qubit}}, qubit2));
         }
     }
     
-    sus.add_gate<SwapGate>({0, 3});
-    sus.add_gate<SwapGate>({1, 2});
+    shor.add_gate<SwapMatrix>({0, 3});
+    shor.add_gate<SwapMatrix>({1, 2});
 
-    sus.run();
-    vector<bool> read = sus.magic_read();
+    shor.run();
+    vector<bool> read = shor.magic_read();
     int res = 0;
     for (int i = 0; i < 4; i++)
         res += (read[i] << i);

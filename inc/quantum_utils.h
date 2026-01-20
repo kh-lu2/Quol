@@ -6,43 +6,60 @@
 using namespace std;
 
 typedef complex<double> CD;
-typedef vector<CD> VCD;
+typedef vector<CD> StateVector;
 typedef vector<vector<CD>> MCD;
 
 extern mt19937 rng;
 extern uniform_real_distribution<double> uniform_dist;
 
-struct Gate {
+struct Matrix {
     MCD matrix;
-    Gate(const MCD& matrix);
+    Matrix(const MCD& matrix);
 };
 
-struct NotGate : Gate {
-    NotGate();
+struct NotMatrix : Matrix {
+    NotMatrix();
 };
 
-struct HadamardGate : Gate {
-    HadamardGate();
+struct HadamardMatrix : Matrix {
+    HadamardMatrix();
 };
 
-struct PhaseFlipGate : Gate
+struct PhaseFlipMatrix : Matrix
 {
-    PhaseFlipGate(double theta);
+    PhaseFlipMatrix(double theta);
 };
 
-struct SwapGate : Gate {
-    SwapGate();
+struct SwapMatrix : Matrix {
+    SwapMatrix();
 };
+
+Matrix createControlledMatrix(const Matrix& matrix);
+
+struct CNOTMatrix : Matrix {
+    CNOTMatrix() : Matrix(createControlledMatrix(Matrix({{0, 1}, {1, 0}})).matrix) {}
+};
+
+struct CCNOTMatrix : Matrix {
+    CCNOTMatrix() : Matrix(createControlledMatrix(createControlledMatrix(Matrix({{0, 1}, {1, 0}}))).matrix) {}
+};
+
+struct Gate {
+    Matrix matrix;
+    vector<int> target_indices;
+
+    Gate(const Matrix& matrix, const vector<int>& t);
+};
+
+Gate createControlledGate(const Gate& gate, int control_index);
 
 struct Operator {
     vector<Gate> gates;
-    vector<vector<int>> gate_indexes;
 
     template<typename T, typename... Args>
     void add_gate(vector<int> indexes, Args&&... args) {
-        T gate{forward<Args>(args)...};
-        gates.push_back(gate);
-        gate_indexes.push_back(indexes);
+        T matrix{forward<Args>(args)...};
+        gates.push_back({matrix, indexes});
     }
 
     void add_operator(const Operator& op);
@@ -50,47 +67,27 @@ struct Operator {
 
 Operator reverse_operator(const Operator& op);
 
-Gate createControlledGate(const Gate& gate);
-
-struct CNOTGate : Gate {
-    CNOTGate() : Gate(createControlledGate(Gate({{0, 1}, {1, 0}})).matrix) {}
-};
-struct CCNOTGate : Gate {
-    CCNOTGate() : Gate(createControlledGate(createControlledGate(Gate({{0, 1}, {1, 0}}))).matrix) {}
-};
-
-VCD get_result_state(const VCD& state, const Gate& gate);
-
-struct GateInfo {
-    Gate gate;
-    vector<int> target_indices;
-
-    GateInfo(const Gate& gate, const vector<int>& t);
-};
-    
 struct Circuit {
     int num_qubits;
-    VCD state;
-    vector<GateInfo> gates;
+    StateVector state;
+    vector<Gate> gates;
 
     Circuit(int n_qubits);
-
     ~Circuit();
 
     template<typename T, typename... Args>
     void add_gate(vector<int> indexes, Args&&... args) {
-        auto gate = new T{forward<Args>(args)...};
-        gates.push_back(GateInfo(*gate, indexes));
-        delete gate;
+        T matrix{forward<Args>(args)...};
+        gates.push_back({matrix, indexes});
     }
 
+    void add_gate(const Gate& gate);
     void add_operator(const Operator& op);
-
-    void apply_gate(const Gate& gate, const vector<int>& targets);
-
+    void apply_gate(const Gate& gate);
     void run();
-
     vector<bool> magic_read();
 };
+
+StateVector get_result_state(const StateVector& state, const Matrix& matrix);
 
 #endif // QUANTUM_UTILS_H

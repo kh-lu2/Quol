@@ -17,10 +17,14 @@ Operators are several Gates. You can add an Operator to another Operator!
 Circuits are generally lists of Gates, but you can add Operators to them, too.
 
 ## A simple quantum circuit
-
+```cpp
+Circuit circuit(2);
+circuit.add_gate<HadamardMatrix>({0});
+circuit.add_gate<CNOTMatrix>({0, 1});
+```
+Can you guess what it does?
 
 ## Bigger examples
-You can find them in the main function.
 ### Shor
 It's an implementation of Shor's algorithm for `n = 15, a = 7 and m = 16`. If you want to see more Shor, take a look at `classical_shor` branch, where you can find Shor's algorithm but computed purely classicaly!
 
