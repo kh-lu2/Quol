@@ -11,6 +11,7 @@
                 "${workspaceFolder}/src/grover.cpp",
                 "${workspaceFolder}/src/shor.cpp",
                 "${workspaceFolder}/src/deutsch.cpp",
+                "${workspaceFolder}/src/ISD.cpp",
                 "-I${workspaceFolder}/inc",
                 "-o",
                 "${workspaceFolder}/build/main.exe"

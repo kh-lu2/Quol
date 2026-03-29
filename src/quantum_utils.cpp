@@ -49,6 +49,16 @@ Matrix createControlledMatrix(const Matrix& matrix) {
     return {controlled_matrix};
 }
 
+Matrix addMultiCNOTs(const Matrix& matrix, int n) {
+    Matrix oldMatrix = matrix, newMatrix = matrix;
+    for (int i = 0; i < n; i++) {
+        newMatrix = createControlledMatrix(oldMatrix);
+        oldMatrix = newMatrix;
+    }
+
+    return newMatrix;
+}
+
 Gate::Gate(const Matrix& matrix, const vector<int>& t) : matrix(matrix), target_indices(t) {}
 
 Gate createControlledGate(const Gate& gate, int control_index) {
