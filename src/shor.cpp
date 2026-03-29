@@ -1,5 +1,6 @@
 #define _USE_MATH_DEFINES
 #include <iostream>
+#include <numeric>
 #include "../inc/shor.h"
 
 int Shor::phase_estimation()  {
@@ -71,6 +72,7 @@ int Shor::get_r_from_fraction_expansion(int p, int n, int a, int m) {
 }
 
 void Shor::run_default(int n, int a, int m) {
+    cout << "====================== SHOR ======================\n";
     cout << "Factorizing 15...\n";
     bool finished = 0;
     do {

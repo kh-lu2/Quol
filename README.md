@@ -25,6 +25,9 @@ circuit.add_gate<CNOTMatrix>({0, 1});
 Can you guess what it does?
 
 ## Bigger examples
+### Deutsch
+Implementation of the first quantum algorithm!
+
 ### Shor
 It's an implementation of Shor's algorithm for `n = 15, a = 7 and m = 16`. If you want to see more Shor, take a look at `classical_shor` branch, where you can find Shor's algorithm but computed purely classicaly!
 
@@ -39,4 +42,3 @@ Performs search for x, such as `f(x) = 1`, where `f(x) = 1` for `x = 1, 5, or 8`
 
 #### Grover 3
 Performs search for x, such as `f(x) = 11`, where `f(x)` swaps bits 1 and 3 of x and then nots bits 0 and 1.
-

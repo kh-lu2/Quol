@@ -124,6 +124,7 @@ void Grover::run_grover(GroverInfo grover_info, int it)  {
 }
 
 void Grover::run_examples() {
+    cout << "===================== GROVER =====================\n";
     GroverInfo grover_info {4, 1, 0, get_f_for_indexes(4, {11})};
     run_grover(grover_info);
     cout << "\n";
