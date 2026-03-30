@@ -49,7 +49,7 @@ Matrix createControlledMatrix(const Matrix& matrix) {
     return {controlled_matrix};
 }
 
-Matrix addMultiCNOTs(const Matrix& matrix, int n) {
+Matrix createMultipleControlledMatrix(const Matrix& matrix, int n) {
     Matrix oldMatrix = matrix, newMatrix = matrix;
     for (int i = 0; i < n; i++) {
         newMatrix = createControlledMatrix(oldMatrix);

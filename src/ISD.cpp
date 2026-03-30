@@ -43,7 +43,7 @@ void ISD::run_example_system_of_equations() {
                 target_cnot_qubits.push_back(i * n + it);
 
             for (auto const &gate: add_row_op.gates) {
-                Matrix gate_with_CNOTs = addMultiCNOTs(gate.matrix, j - i);
+                Matrix gate_with_CNOTs = createMultipleControlledMatrix(gate.matrix, j - i);
                 vector<int> target_qubits = target_cnot_qubits;
                 for (auto const &index: gate.target_indices)
                     target_qubits.push_back(index);

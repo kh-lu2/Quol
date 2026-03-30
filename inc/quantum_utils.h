@@ -44,7 +44,7 @@ struct CCNOTMatrix : Matrix {
     CCNOTMatrix() : Matrix(createControlledMatrix(createControlledMatrix(Matrix({{0, 1}, {1, 0}}))).matrix) {}
 };
 
-Matrix addMultiCNOTs(const Matrix& matrix, int n);
+Matrix createMultipleControlledMatrix(const Matrix& matrix, int n);
 
 struct Gate {
     Matrix matrix;
