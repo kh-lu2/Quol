@@ -2,6 +2,7 @@
 #include <map>
 #include <iostream>
 #include "../inc/grover.h"
+#include "../inc/quantum_utils.h"
 
 Operator Grover::get_Fn(int n, const Operator& fx) {
     Operator Fn;
@@ -19,11 +20,7 @@ Operator Grover::get_Fn(int n, const Operator& fx) {
 }
 
 Operator Grover::check_if_all_ones(int n) {
-    Operator op;
-    op.add_gate<CCNOTMatrix>({0, 1, n});
-    for (int i = 0; i < n - 2; i++)
-        op.add_gate<CCNOTMatrix>({n + i, i + 2, n + i + 1 }); 
-    return op;
+    return QuantumUtils::check_if_all_ones(n, 0, n);
 }
 
 Operator Grover::minus_one_to_power_of_f(int n, const Operator& Fn) {

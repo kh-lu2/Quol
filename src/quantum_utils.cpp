@@ -1,4 +1,6 @@
 #include <random>
+#include <bit>
+#include <iostream>
 #include "../inc/quantum_utils.h"
 
 mt19937 rng(random_device{}());
@@ -15,8 +17,8 @@ NotMatrix::NotMatrix() : Matrix (
 
 HadamardMatrix::HadamardMatrix() : Matrix (
     {
-        {1/sqrt(2), 1/sqrt(2)},
-        {1/sqrt(2), -1/sqrt(2)}
+        {1 / sqrt(2), 1 / sqrt(2)},
+        {1 / sqrt(2), -1 / sqrt(2)}
     }
 ) {}
 
@@ -24,6 +26,13 @@ PhaseFlipMatrix::PhaseFlipMatrix(double theta) : Matrix (
     {
         {1, 0},
         {0, CD(polar(1.0, theta))}
+    }
+) {}
+
+RotationMatrix::RotationMatrix(double theta) : Matrix (
+    {
+        {cos(theta / 2), -sin(theta / 2)},
+        {sin(theta / 2), cos(theta / 2)}
     }
 ) {}
 
@@ -67,6 +76,10 @@ Gate createControlledGate(const Gate& gate, int control_index) {
     for (auto &idx : gate.target_indices)
         controlled_indexes.push_back(idx);
     return {controlled_matrix, controlled_indexes};
+}
+
+void Operator::add_gate(const Gate& gate) {
+    gates.push_back(gate);
 }
 
 void Operator::add_operator(const Operator& op) {
@@ -140,8 +153,13 @@ void Circuit::apply_gate(const Gate& gate) {
 }
 
 void Circuit::run() {
-    for (auto& gate : gates)
-        apply_gate(gate);
+    cout << gates.size() << "\n";
+    for (int i = 0; i < gates.size(); i++) {
+        apply_gate(gates[i]);
+        cout << i << "\n";
+    }
+    // for (auto& gate : gates)
+    //     apply_gate(gate);
 }
 
 vector<bool> Circuit::magic_read() {
@@ -176,4 +194,44 @@ StateVector get_result_state(const StateVector& state, const Matrix& matrix) {
         }
     }
     return result;
+}
+
+Operator QuantumUtils::check_if_all_ones(int n, int start_index, int ancilla_start_index) {
+    Operator op;
+    if (n == 1) {
+        return op;
+    }
+
+    op.add_gate<CCNOTMatrix>({start_index, start_index + 1, ancilla_start_index});
+    for (int i = 0; i < n - 2; i++)
+        op.add_gate<CCNOTMatrix>({ancilla_start_index + i, i + 2, ancilla_start_index + i + 1 }); 
+    return op;
+}
+
+Operator QuantumUtils::get_NOTs(int bits, int number, int start_index, bool compare) {
+    Operator op;
+
+    for (int bit = 0; bit < bits; bit++)
+        if (((number >> bit) & 1) == compare)
+            op.add_gate<NotMatrix>({start_index + bit});
+
+    return op;
+}
+
+Operator QuantumUtils::get_minus_one_operator(int bits_count, int start_index) {
+    Operator op;
+    op.add_gate<NotMatrix>({start_index});
+
+    for (int i = 1; i < bits_count; i++) {
+        NotMatrix not_matrix = NotMatrix();
+        Matrix multiCNOT = createMultipleControlledMatrix(not_matrix, i);
+
+        vector<int> target_qubits;
+        for (int j = start_index; j <= start_index + i; j++)
+            target_qubits.push_back(j);
+
+        op.add_gate({multiCNOT, target_qubits});
+    }
+
+    return op;
 }

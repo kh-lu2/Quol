@@ -4,15 +4,15 @@
 #include "inc/ISD.h"
 
 int main() {
-    Deutsch deutsch;
-    deutsch.run_deutsch();
+    // Deutsch deutsch;
+    // deutsch.run_deutsch();
 
-    Shor shor;
-    shor.run_default();
+    // Shor shor;
+    // shor.run_default();
 
-    Grover grover;
-    grover.run_examples();
+    // Grover grover;
+    // grover.run_examples();
 
     ISD isd;
-    isd.run_example_system_of_equations();
+    isd.run_defaults();
 }

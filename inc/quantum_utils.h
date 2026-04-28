@@ -30,6 +30,10 @@ struct PhaseFlipMatrix : Matrix
     PhaseFlipMatrix(double theta);
 };
 
+struct RotationMatrix : Matrix {
+    RotationMatrix(double theta);
+};
+
 struct SwapMatrix : Matrix {
     SwapMatrix();
 };
@@ -64,6 +68,7 @@ struct Operator {
         gates.push_back({matrix, indexes});
     }
 
+    void add_gate(const Gate& gate);
     void add_operator(const Operator& op);
 };
 
@@ -91,5 +96,11 @@ struct Circuit {
 };
 
 StateVector get_result_state(const StateVector& state, const Matrix& matrix);
+
+struct QuantumUtils {
+    static Operator check_if_all_ones(int n, int start_index, int ancilla_start_index);
+    static Operator get_NOTs(int bits, int number, int start_index, bool compare);
+    static Operator get_minus_one_operator(int bits_count, int start_index);
+};
 
 #endif // QUANTUM_UTILS_H
