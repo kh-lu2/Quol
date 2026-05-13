@@ -7,6 +7,18 @@ mt19937 rng(random_device{}());
 uniform_real_distribution<double> uniform_dist(0.0, 1.0);
 
 Matrix::Matrix(const MCD& matrix) : matrix(matrix) {}
+Matrix Matrix::get_reverse() const {
+    if (matrix.empty())
+        return {MCD{}};
+
+    size_t rows = matrix.size();
+    size_t cols = matrix[0].size();
+    MCD reversed(cols, vector<CD>(rows, 0));
+    for (size_t i = 0; i < rows; i++)
+        for (size_t j = 0; j < cols; j++)
+            reversed[j][i] = std::conj(matrix[i][j]);
+    return {reversed};
+}
 
 NotMatrix::NotMatrix() : Matrix (
     {
@@ -45,7 +57,7 @@ SwapMatrix::SwapMatrix() : Matrix (
     }
 ) {}
 
-Matrix createControlledMatrix(const Matrix& matrix) {
+Matrix create_controlled_matrix(const Matrix& matrix) {
     const MCD& U = matrix.matrix;
     int k = U.size();
     MCD controlled_matrix(2 * k);
@@ -58,10 +70,10 @@ Matrix createControlledMatrix(const Matrix& matrix) {
     return {controlled_matrix};
 }
 
-Matrix createMultipleControlledMatrix(const Matrix& matrix, int n) {
+Matrix create_multiple_controlled_matrix(const Matrix& matrix, int n) {
     Matrix oldMatrix = matrix, newMatrix = matrix;
     for (int i = 0; i < n; i++) {
-        newMatrix = createControlledMatrix(oldMatrix);
+        newMatrix = create_controlled_matrix(oldMatrix);
         oldMatrix = newMatrix;
     }
 
@@ -70,8 +82,8 @@ Matrix createMultipleControlledMatrix(const Matrix& matrix, int n) {
 
 Gate::Gate(const Matrix& matrix, const vector<int>& t) : matrix(matrix), target_indices(t) {}
 
-Gate createControlledGate(const Gate& gate, int control_index) {
-    Matrix controlled_matrix = createControlledMatrix(gate.matrix);
+Gate create_controlled_gate(const Gate& gate, int control_index) {
+    Matrix controlled_matrix = create_controlled_matrix(gate.matrix);
     vector<int> controlled_indexes = {control_index};
     for (auto &idx : gate.target_indices)
         controlled_indexes.push_back(idx);
@@ -90,12 +102,12 @@ void Operator::add_operator(const Operator& op) {
 Operator reverse_operator(const Operator& op) {
     Operator result;
     for (int i = op.gates.size() - 1; i >= 0; i--)
-        result.gates.push_back(op.gates[i]);
+        result.gates.push_back({op.gates[i].matrix.get_reverse(), op.gates[i].target_indices});
     return result;
 }
 
 Circuit::Circuit(int n_qubits) : num_qubits(n_qubits) {
-    int dim = 1 << num_qubits;
+    size_t dim = 1ULL << num_qubits;
     state = StateVector(dim, 0);
     state[0] = 1;
 }
@@ -114,32 +126,32 @@ void Circuit::add_operator(const Operator& op) {
 void Circuit::apply_gate(const Gate& gate) {
     auto &targets = gate.target_indices;
 
-    int num_spectators = num_qubits - targets.size(); 
-    int target_mask = 0;
+    size_t num_spectators = num_qubits - targets.size(); 
+    size_t target_mask = 0;
     for (auto &target: targets)
-        target_mask |= (1 << target);
+        target_mask |= (1ULL << target);
 
-    int spectator_mask = 0;
-    for (int i = 0; i < num_qubits; i++)
+    size_t spectator_mask = 0;
+    for (size_t i = 0; i < num_qubits; i++)
         if (!((target_mask >> i) & 1))
-            spectator_mask |= (1 << i);
+            spectator_mask |= (1ULL << i);
 
-    for (int spectator_state = 0; spectator_state < (1 << num_spectators); spectator_state++) {
+    for (size_t spectator_state = 0; spectator_state < (1ULL << num_spectators); spectator_state++) {
         StateVector working_state;
-        vector<int> working_state_ids;
-        int long_spectator_state = 0;
-        int spect_id = 0;
+        vector<size_t> working_state_ids;
+        size_t long_spectator_state = 0;
+        size_t spect_id = 0;
 
-        for (int i = 0; i < num_qubits; i++) {
+        for (size_t i = 0; i < num_qubits; i++) {
             if ((spectator_mask >> i) & 1) {
-                long_spectator_state |= ((spectator_state >> spect_id) & 1) << i;
+                long_spectator_state |= ((spectator_state >> spect_id) & 1ULL) << i;
                 spect_id++;
             }
         }
 
-        for (int target_state = 0; target_state < (1 << targets.size()); target_state++) {
-            int state_id = long_spectator_state;
-            for (int target_id = 0; target_id < targets.size(); target_id++)
+        for (size_t target_state = 0; target_state < (1 << targets.size()); target_state++) {
+            size_t state_id = long_spectator_state;
+            for (size_t target_id = 0; target_id < targets.size(); target_id++)
                 if ((target_state >> target_id) & 1)
                     state_id |= (1 << targets[target_id]);
             working_state_ids.push_back(state_id);
@@ -147,40 +159,35 @@ void Circuit::apply_gate(const Gate& gate) {
         }
 
         StateVector result = get_result_state(working_state, gate.matrix);
-        for (int i = 0; i < working_state_ids.size(); i++)
+        for (size_t i = 0; i < working_state_ids.size(); i++)
             state[working_state_ids[i]] = result[i];
     }
 }
 
 void Circuit::run() {
-    cout << gates.size() << "\n";
-    for (int i = 0; i < gates.size(); i++) {
-        apply_gate(gates[i]);
-        cout << i << "\n";
-    }
-    // for (auto& gate : gates)
-    //     apply_gate(gate);
+    for (auto& gate : gates)
+        apply_gate(gate);
 }
 
 vector<bool> Circuit::magic_read() {
     vector<bool> res(num_qubits);
-    int full_dim = 1 << num_qubits;
+    size_t full_dim = 1 << num_qubits;
     
     vector<double> cumulative_prob(full_dim);
     cumulative_prob[0] = norm(state[0]);
-    for (int i = 1; i < full_dim; i++)
+    for (size_t i = 1; i < full_dim; i++)
         cumulative_prob[i] = cumulative_prob[i-1] + norm(state[i]);
     
     double r = uniform_dist(rng);
-    int measured_state = 0;
-    for (int i = 0; i < full_dim; i++) {
+    size_t measured_state = 0;
+    for (size_t i = 0; i < full_dim; i++) {
         if (r <= cumulative_prob[i]) {
             measured_state = i;
             break;
         }
     }
     
-    for (int q = 0; q < num_qubits; q++)
+    for (size_t q = 0; q < num_qubits; q++)
         res[q] = (measured_state >> q) & 1;
     
     return res;
@@ -188,19 +195,16 @@ vector<bool> Circuit::magic_read() {
 
 StateVector get_result_state(const StateVector& state, const Matrix& matrix) {
     StateVector result(state.size());
-    for (int i = 0; i < state.size(); i++) {
-        for (int j = 0; j < state.size(); j++) {
+    for (size_t i = 0; i < state.size(); i++)
+        for (size_t j = 0; j < state.size(); j++) 
             result[i] += state[j] * matrix.matrix[j][i];
-        }
-    }
+
     return result;
 }
 
 Operator QuantumUtils::check_if_all_ones(int n, int start_index, int ancilla_start_index) {
     Operator op;
-    if (n == 1) {
-        return op;
-    }
+    if (n == 1) return op;
 
     op.add_gate<CCNOTMatrix>({start_index, start_index + 1, ancilla_start_index});
     for (int i = 0; i < n - 2; i++)
@@ -224,7 +228,7 @@ Operator QuantumUtils::get_minus_one_operator(int bits_count, int start_index) {
 
     for (int i = 1; i < bits_count; i++) {
         NotMatrix not_matrix = NotMatrix();
-        Matrix multiCNOT = createMultipleControlledMatrix(not_matrix, i);
+        Matrix multiCNOT = create_multiple_controlled_matrix(not_matrix, i);
 
         vector<int> target_qubits;
         for (int j = start_index; j <= start_index + i; j++)

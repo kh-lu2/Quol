@@ -2,17 +2,18 @@
 #include "inc/grover.h"
 #include "inc/deutsch.h"
 #include "inc/ISD.h"
+#include <iostream>
 
 int main() {
-    // Deutsch deutsch;
-    // deutsch.run_deutsch();
+    Deutsch deutsch;
+    deutsch.run_deutsch();
 
-    // Shor shor;
-    // shor.run_default();
+    Shor shor;
+    shor.run_default();
 
-    // Grover grover;
-    // grover.run_examples();
-
+    Grover grover;
+    grover.run_examples();
+    
     ISD isd;
     isd.run_defaults();
 }

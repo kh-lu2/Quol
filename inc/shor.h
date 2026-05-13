@@ -1,3 +1,4 @@
+#pragma once
 #include "quantum_utils.h"
 
 struct Shor {

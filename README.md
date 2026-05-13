@@ -22,7 +22,7 @@ Circuit circuit(2);
 circuit.add_gate<HadamardMatrix>({0});
 circuit.add_gate<CNOTMatrix>({0, 1});
 ```
-Can you guess what it does?
+Do you know what it does?
 
 ## Bigger examples
 ### Deutsch
@@ -42,3 +42,6 @@ Performs search for x, such as `f(x) = 1`, where `f(x) = 1` for `x = 1, 5, or 8`
 
 #### Grover 3
 Performs search for x, such as `f(x) = 11`, where `f(x)` swaps bits 1 and 3 of x and then nots bits 0 and 1.
+
+### ISD
+Quantum ISD implementation that uses Grover's amplitude amplification to find column subsets yielding error weight equal one.

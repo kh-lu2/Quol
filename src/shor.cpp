@@ -22,7 +22,7 @@ int Shor::phase_estimation()  {
         int reps = 1 << i;
         for (int r = 0; r < reps; r++)
             for (int g = 0; g < U.gates.size(); g++)
-                shor.add_gate(createControlledGate(U.gates[g], i));
+                shor.add_gate(create_controlled_gate(U.gates[g], i));
     }
 
     for (int qubit = 3; qubit >= 0; qubit--) {
@@ -30,7 +30,7 @@ int Shor::phase_estimation()  {
         
         for (int qubit2 = qubit - 1; qubit2 >= 0; qubit2--) {
             double theta = M_PI / (1 << (qubit - qubit2));
-            shor.add_gate(createControlledGate({PhaseFlipMatrix(theta), {qubit}}, qubit2));
+            shor.add_gate(create_controlled_gate({PhaseFlipMatrix(theta), {qubit}}, qubit2));
         }
     }
     

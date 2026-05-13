@@ -1,5 +1,4 @@
-#ifndef QUANTUM_UTILS_H
-#define QUANTUM_UTILS_H
+#pragma once
 #include <complex>
 #include <vector>
 #include <random>
@@ -15,6 +14,7 @@ extern uniform_real_distribution<double> uniform_dist;
 struct Matrix {
     MCD matrix;
     Matrix(const MCD& matrix);
+    Matrix get_reverse() const;
 };
 
 struct NotMatrix : Matrix {
@@ -38,17 +38,21 @@ struct SwapMatrix : Matrix {
     SwapMatrix();
 };
 
-Matrix createControlledMatrix(const Matrix& matrix);
+Matrix create_controlled_matrix(const Matrix& matrix);
 
 struct CNOTMatrix : Matrix {
-    CNOTMatrix() : Matrix(createControlledMatrix(Matrix({{0, 1}, {1, 0}})).matrix) {}
+    CNOTMatrix() : Matrix(create_controlled_matrix(Matrix({{0, 1}, {1, 0}})).matrix) {}
 };
 
 struct CCNOTMatrix : Matrix {
-    CCNOTMatrix() : Matrix(createControlledMatrix(createControlledMatrix(Matrix({{0, 1}, {1, 0}}))).matrix) {}
+    CCNOTMatrix() : Matrix(create_controlled_matrix(create_controlled_matrix(Matrix({{0, 1}, {1, 0}}))).matrix) {}
 };
 
-Matrix createMultipleControlledMatrix(const Matrix& matrix, int n);
+struct CCCNOTMatrix : Matrix {
+    CCCNOTMatrix() : Matrix(create_controlled_matrix(create_controlled_matrix(create_controlled_matrix(Matrix({{0, 1}, {1, 0}})))).matrix) {}
+};
+
+Matrix create_multiple_controlled_matrix(const Matrix& matrix, int n);
 
 struct Gate {
     Matrix matrix;
@@ -57,7 +61,7 @@ struct Gate {
     Gate(const Matrix& matrix, const vector<int>& t);
 };
 
-Gate createControlledGate(const Gate& gate, int control_index);
+Gate create_controlled_gate(const Gate& gate, int control_index);
 
 struct Operator {
     vector<Gate> gates;
@@ -102,5 +106,3 @@ struct QuantumUtils {
     static Operator get_NOTs(int bits, int number, int start_index, bool compare);
     static Operator get_minus_one_operator(int bits_count, int start_index);
 };
-
-#endif // QUANTUM_UTILS_H
